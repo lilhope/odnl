@@ -13,7 +13,7 @@ Thanks for the amazing feature of mxnet,a GPU with 6GB memory is enough
 - download daatset [refer](https://github.com/lichengunc/refer) refcoco version and upzip it,put it in `data` folder.
 - download the mscoco(http://mscoco.org/) dataset
 - download the pre-trained Facebook word2vec model
-- uhhh. so many data for download,I'll write a script for easy usage.
+- uhhh. so many data for download,I'll write a script for easy usage (:
 - run `make` in root folder,this will make some cython functions for RCNN and tookits of mscoco
 - `python train_end2end.py`
 
@@ -24,6 +24,7 @@ There were some technologies that may improve my model.I've add it to the workin
 - [x] Use [ROIAlign](https://arxiv.org/pdf/1703.06870.pdf) instead of RoIPooling(cpu farward and backward was implemented,I'm working on the GPU code)
 - encode sentences using CNN,which seems more effcient for short text.
 - dilation CNN to get image feature.
+- add a demo,I think a onlie domo is needed.
 
 
 ## Reference and acknowlegement
