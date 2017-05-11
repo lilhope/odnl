@@ -289,6 +289,10 @@ def get_vgg_test(num_classes=config.NUM_CLASSES, num_anchors=config.NUM_ANCHORS)
     # Fast R-CNN
     pool5 = mx.symbol.ROIPooling(
         name='roi_pool5', data=relu5_3, rois=rois, pooled_size=(7, 7), spatial_scale=1.0 / config.RCNN_FEAT_STRIDE)
+	#get sentence feat
+    sent = encoder_test(seq_len,expression)
+    #concat region feat and sent feat togethor
+    feat = mx.symbol.add_n(pool5,sent)
     # group 6
     flatten = mx.symbol.Flatten(data=pool5, name="flatten")
     fc6 = mx.symbol.FullyConnected(data=flatten, num_hidden=4096, name="fc6")
@@ -382,6 +386,10 @@ def get_vgg_train(num_classes=config.NUM_CLASSES, num_anchors=config.NUM_ANCHORS
     # Fast R-CNN
     pool5 = mx.symbol.ROIPooling(
         name='roi_pool5', data=relu5_3, rois=rois, pooled_size=(7, 7), spatial_scale=1.0 / config.RCNN_FEAT_STRIDE)
+	#get sentence feat
+    sent = encoder(seq_len,expression)
+    #concat region feat and sent feat togethor
+    feat = mx.symbol.add_n(pool5,sent)
     # group 6
     flatten = mx.symbol.Flatten(data=pool5, name="flatten")
     fc6 = mx.symbol.FullyConnected(data=flatten, num_hidden=4096, name="fc6")
@@ -406,3 +414,29 @@ def get_vgg_train(num_classes=config.NUM_CLASSES, num_anchors=config.NUM_ANCHORS
 
     group = mx.symbol.Group([rpn_cls_prob, rpn_bbox_loss, cls_prob, bbox_loss, mx.symbol.BlockGrad(label)])
     return group
+def encoder(seq_len,expression):
+    """use the RNN to encoder the sentence"""
+    vocab_size = config.RNN.VOCAB_SIZE
+    num_embed = config.RNN.NUM_EMBED
+    embed = mx.symbol.Embedding(data=expression,input_dim=vocab_size,output_dim=num_embed,name='embed')
+    #TODO:1024 dim seems need lots of memory
+    cell = mx.rnn.FusedRNNCell(num_hidden=1024,num_layers=2,mode='lstm',dropout=0.5)
+    outputs,_ = cell.unroll(seq_len,inputs=embed)
+    output = mx.symbol.slice_axis(data=outputs,axis=1,begin=-2,end=-1)
+    output = mx.symbol.reshape(data=output,shape=(1,1,1,1024))
+    output = mx.symbol.broadcast_to(data=output,shape=(config.TRAIN.BATCH_ROIS,14,14,1024))
+    output = mx.symbol.swapaxes(data=output,dim1=1,dim2=3)
+    return output
+def encoder_test(seq_len,expression):
+    """use the RNN to encoder the sentence"""
+    vocab_size = config.RNN.VOCAB_SIZE
+    num_embed = config.RNN.NUM_EMBED
+    embed = mx.symbol.Embedding(data=expression,input_dim=vocab_size,output_dim=num_embed,name='embed')
+    #TODO:1024 dim seems need lots of memory
+    cell = mx.rnn.FusedRNNCell(num_hidden=1024,num_layers=2,mode='lstm',dropout=0.5)
+    outputs,_ = cell.unroll(seq_len,inputs=embed)
+    output = mx.symbol.slice_axis(data=outputs,axis=1,begin=-2,end=-1)
+    output = mx.symbol.reshape(data=output,shape=(1,1,1,1024))
+    output = mx.symbol.broadcast_to(data=output,shape=(config.TEST.RPN_POST_NMS_TOP_N,14,14,1024))
+    output = mx.symbol.swapaxes(data=output,dim1=1,dim2=3)
+    return output
