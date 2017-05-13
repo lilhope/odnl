@@ -30,7 +30,8 @@ def train_net(args, ctx, pretrained, epoch, prefix, begin_epoch, end_epoch,
     config.TRAIN.BBOX_NORMALIZATION_PRECOMPUTED = True
 
     # load symbol
-    sym = eval('get_' + args.network + '_train')(46,num_classes=config.NUM_CLASSES, num_anchors=config.NUM_ANCHORS)
+    sym_gen = eval('get_' + args.network + '_train')
+    sym = sym_gen(46,num_classes=config.NUM_CLASSES, num_anchors=config.NUM_ANCHORS)
     feat_sym = sym.get_internals()['rpn_cls_score_output']
 
     # setup multi-gpu
@@ -60,7 +61,7 @@ def train_net(args, ctx, pretrained, epoch, prefix, begin_epoch, end_epoch,
     # infer shape
     #get a new symbol
     bucket_key = train_data.bucket_key
-    curr_sym = get_resnet_train(seq_len=bucket_key,num_classes=config.NUM_CLASSES, num_anchors=config.NUM_ANCHORS)
+    curr_sym = sym_gen(seq_len=bucket_key,num_classes=config.NUM_CLASSES, num_anchors=config.NUM_ANCHORS)
     print(train_data.provide_data)
     data_shape_dict = dict(train_data.provide_data + train_data.provide_label)
     arg_shape, out_shape, aux_shape = curr_sym.infer_shape(**data_shape_dict)
@@ -75,6 +76,7 @@ def train_net(args, ctx, pretrained, epoch, prefix, begin_epoch, end_epoch,
 
     # load and initialize params
     if args.resume:
+        print("continue training from epoch {}".format(begin_epoch))
         arg_params, aux_params = load_param(prefix, begin_epoch, convert=True)
     else:
         
@@ -110,7 +112,7 @@ def train_net(args, ctx, pretrained, epoch, prefix, begin_epoch, end_epoch,
     fixed_param_prefix = config.FIXED_PARAMS
     data_names = [k[0] for k in train_data.provide_data]
     label_names = [k[0] for k in train_data.provide_label]
-    mod = MutableModule(get_resnet_train, data_names=data_names, label_names=label_names,
+    mod = MutableModule(sym_gen, data_names=data_names, label_names=label_names,
                         logger=logger, context=ctx, work_load_list=args.work_load_list,
                         max_data_shapes=max_data_shape, max_label_shapes=max_label_shape,
                         fixed_param_prefix=fixed_param_prefix)
@@ -176,13 +178,13 @@ def parse_args():
     parser.add_argument('--work_load_list', help='work load for different devices', default=None, type=list)
     parser.add_argument('--no_flip', help='disable flip images', action='store_true')
     parser.add_argument('--no_shuffle', help='disable random shuffle', action='store_true')
-    parser.add_argument('--resume', help='continue training', action='store_true')
+    parser.add_argument('--resume', help='continue training', default=True,type=bool)
     # e2e
     parser.add_argument('--gpus', help='GPU device to train with', default='0', type=str)
     parser.add_argument('--pretrained', help='pretrained model prefix', default=default.pretrained, type=str)
     parser.add_argument('--pretrained_epoch', help='pretrained model epoch', default=default.pretrained_epoch, type=int)
     parser.add_argument('--prefix', help='new model prefix', default=default.e2e_prefix, type=str)
-    parser.add_argument('--begin_epoch', help='begin epoch of training, use with resume', default=0, type=int)
+    parser.add_argument('--begin_epoch', help='begin epoch of training, use with resume', default=3, type=int)
     parser.add_argument('--end_epoch', help='end epoch of training', default=default.e2e_epoch, type=int)
     parser.add_argument('--lr', help='base learning rate', default=default.e2e_lr, type=float)
     parser.add_argument('--lr_step', help='learning rate steps (in epoch)', default=default.e2e_lr_step, type=str)
