@@ -22,7 +22,14 @@ Thanks for the amazing feature of mxnet,a GPU with 6GB memory is enough
 - `python train_end2end.py`
 
 ### Testing
-- `python test.py`, the test output will write to `data/cache/decetion.pkl`file.
+- `python test.py`, the test output will write to `data/cache/decetion.pkl`file.  
+
+### Result
+I list some good and not good result as follow：
+<img src="./images/sample-1.png" width=100%>
+<img src="./images/sample-2.png" width=100%>
+<img src="./images/sample-3.png" width=100%>
+<img src="./images/sample-4.png" width=100%>
 ## working project  
 There were some technologies that may improve my model.I've add it to the working project.shown as below:  
 - [x] Use [ROIAlign](https://arxiv.org/pdf/1703.06870.pdf) instead of RoIPooling(cpu farward and backward was implemented,I'm working on the GPU code)
