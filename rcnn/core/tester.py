@@ -4,11 +4,14 @@ import os
 import time
 import mxnet as mx
 import numpy as np
+import skimage.io as io
+import matplotlib.pyplot as plt
+from matplotlib.patches import Polygon, Rectangle
 
 from module import MutableModule
 from rcnn.config import config
 from rcnn.io import image
-from rcnn.processing.bbox_transform import bbox_pred, clip_boxes
+from rcnn.processing.bbox_transform import bbox_pred, clip_boxes,bbox_overlaps
 from rcnn.processing.nms import py_nms_wrapper, cpu_nms_wrapper, gpu_nms_wrapper
 
 
@@ -139,67 +142,82 @@ def pred_eval(predictor, test_data, roidb, vis=False, thresh=1e-3):
     :param thresh: valid detection threshold
     :return:
     """
-    assert vis or not test_data.shuffle
-    data_names = [k[0] for k in test_data.provide_data]
-
-    nms = py_nms_wrapper(config.TEST.NMS)
-    num_samples = len(roidb)
-    # limit detections to max_per_image over all classes
-    max_per_image = -1
-
-    # all detections are collected into:
-    #    all_boxes[cls][image] = N x 5 array of detections in
-    #    (x1, y1, x2, y2, score)
-    all_boxes = [[] for _ in range(num_samples)]
-
-    i = 0
-    t = time.time()
-    for im_info, data_batch in test_data:
-        t1 = time.time() - t
-        t = time.time()
-
-        scale = im_info[0, 2]
-        scores, boxes, data_dict = im_detect(predictor, data_batch, data_names, scale)
-
-        t2 = time.time() - t
-        t = time.time()
-        #onlt class 1 is what we wanted
+    data_root = os.getcwd()
+    det_file = os.path.join(data_root,'data/cache/dection.pkl')
+    if not os.path.exists(det_file):
         
-        indexes = np.where(scores[:, 1] > thresh)[0]
-        print(indexes)
-        cls_scores = scores[indexes, 1, np.newaxis]
-        cls_boxes = boxes[indexes, 1 * 4:2 * 4]
-        cls_dets = np.hstack((cls_boxes, cls_scores))
-        keep = nms(cls_dets)
-        print(keep)
-        all_boxes[i] = cls_dets[keep,:]
+        assert vis or not test_data.shuffle
+        data_names = [k[0] for k in test_data.provide_data]
 
-        """if max_per_image > 0:
-            image_scores = np.hstack([all_boxes[j][i][:, -1]
-                                      for j in range(1, imdb.num_classes)])
-            if len(image_scores) > max_per_image:
-                image_thresh = np.sort(image_scores)[-max_per_image]
-                for j in range(1, imdb.num_classes):
-                    keep = np.where(all_boxes[j][i][:, -1] >= image_thresh)[0]
-                    all_boxes[j][i] = all_boxes[j][i][keep, :]"""
+        nms = py_nms_wrapper(config.TEST.NMS)
+        num_samples = len(roidb)
+        # all detections are collected into:
+        #    all_boxes[cls][image] = N x 5 array of detections in
+        #    (x1, y1, x2, y2, score)
+        all_boxes = [[] for _ in range(num_samples)]
 
-        if vis:
-            boxes_this_image = [[]] + [all_boxes[j][i] for j in range(1, imdb.num_classes)]
-            vis_all_detection(data_dict['data'].asnumpy(), boxes_this_image, imdb.classes, scale)
-
-        t3 = time.time() - t
+        i = 0
         t = time.time()
-        print('testing {}/{} data {:.4f}s net {:.4f}s post {:.4f}s'.format(i, num_samples, t1, t2, t3))
-        i += 1
+        for im_info, data_batch in test_data:
+            t1 = time.time() - t
+            t = time.time()
+    
+            scale = im_info[0, 2]
+            scores, boxes, data_dict = im_detect(predictor, data_batch, data_names, scale)
+            #print(scores)
+    
+            t2 = time.time() - t
+            t = time.time()
+            #onlt class 1 is what we wanted
+            
+            indexes = np.where(scores[:, 1] > thresh)[0]
+           
+            cls_scores = scores[indexes, 1, np.newaxis]
+            cls_boxes = boxes[indexes, 1 * 4:2 * 4]
+            cls_dets = np.hstack((cls_boxes, cls_scores))
+            keep = nms(cls_dets)
+            all_boxes[i] = cls_dets[keep,:]
+            t3 = time.time() - t
+            t = time.time()
+            print('testing {}/{} data {:.4f}s net {:.4f}s post {:.4f}s'.format(i, num_samples, t1, t2, t3))
+            i += 1
 
-    det_file = '/home/lilhope/rcnn/data/cache/dection.pkl'
-    with open(det_file, 'wb') as f:
-        cPickle.dump(all_boxes, f, protocol=cPickle.HIGHEST_PROTOCOL)
+        with open(det_file, 'wb') as f:
+            cPickle.dump(all_boxes, f, protocol=cPickle.HIGHEST_PROTOCOL)
+    else:
+        with open(det_file,'rb') as f:
+            all_boxes = cPickle.load(f)
+    evalutate_detections(all_boxes,roidb)
+    vis_all_detection(all_boxes,roidb)
 
     #imdb.evaluate_detections(all_boxes)
+def evalutate_detections(all_boxes,roidb):
+    """evalutate detections.
+    :param all_boxes:all boxes predicted by our model
+    :param roidb:that store the ground truth info
+    :param p:select boxes which probability large than p
+    :param thresh:overlap threshold."""
+    assert len(all_boxes)==len(roidb)
+    pos_count = 0
+    for  i in range(len(roidb)):
+        ground_truth = roidb[i]['bbox']
+        pred_boxes = all_boxes[i]
+        if pred_boxes.shape[0] == 0:
+            continue
+        pred_box_ind = np.argmax(pred_boxes[:,4])
+        pred_box = pred_boxes[pred_box_ind,:]
+        pred_box = pred_box[np.newaxis,:]
+        overlap = bbox_overlaps(pred_box[:,:4].astype(np.float),ground_truth.astype(np.float))
+        if overlap[0][0] > 0.9:
+            pos_count += 1
+            
+    acc = float(pos_count) / len(roidb)
+    print(acc)
+        
+    
 
 
-def vis_all_detection(im_array, detections, class_names, scale):
+def vis_all_detection(all_boxes,roidb):
     """
     visualize all detections in one image
     :param im_array: [b=1 c h w] in rgb
@@ -208,27 +226,29 @@ def vis_all_detection(im_array, detections, class_names, scale):
     :param scale: visualize the scaled image
     :return:
     """
-    import matplotlib.pyplot as plt
-    import random
-    im = image.transform_inverse(im_array, config.PIXEL_MEANS)
-    plt.imshow(im)
-    for j, name in enumerate(class_names):
-        if name == '__background__':
+
+    for i in range(len(roidb)):
+		# show image
+        ax = plt.gca()
+        plt.figure()
+        file_name = roidb[i]['image']
+        I = io.imread(file_name)
+        ax.imshow(I)
+        # show refer expression
+        print("raw:{}".format(roidb[i]['sent']))
+        gt_box = roidb[i]['bbox'][0]
+        gt_box_plot = Rectangle((gt_box[0], gt_box[1]), gt_box[2]-gt_box[0]+1, gt_box[3]-gt_box[1]+1, fill=False, edgecolor='green', linewidth=3)
+        ax.add_patch(gt_box_plot)
+        pred_boxes = all_boxes[i]
+        if pred_boxes.shape[0] == 0:
             continue
-        color = (random.random(), random.random(), random.random())  # generate a random color
-        dets = detections[j]
-        for det in dets:
-            bbox = det[:4] * scale
-            score = det[-1]
-            rect = plt.Rectangle((bbox[0], bbox[1]),
-                                 bbox[2] - bbox[0],
-                                 bbox[3] - bbox[1], fill=False,
-                                 edgecolor=color, linewidth=3.5)
-            plt.gca().add_patch(rect)
-            plt.gca().text(bbox[0], bbox[1] - 2,
-                           '{:s} {:.3f}'.format(name, score),
-                           bbox=dict(facecolor=color, alpha=0.5), fontsize=12, color='white')
+        pred_box_ind = np.argmax(pred_boxes[:,4])
+        pred_box = pred_boxes[pred_box_ind,:]
+        pred_box_plot = Rectangle((pred_box[0], pred_box[1]), pred_box[2]-gt_box[0]+1, gt_box[3]-gt_box[1]+1, fill=False, edgecolor='red', linewidth=3)
+        ax.add_patch(pred_box_plot)
+        plt.show()
     plt.show()
+        
 
 
 def draw_all_detection(im_array, detections, class_names, scale):
