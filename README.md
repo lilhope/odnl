@@ -25,7 +25,7 @@ Thanks for the amazing feature of mxnet,a GPU with 6GB memory is enough
 - `python test.py`, the test output will write to `data/cache/decetion.pkl`file.  
 
 ### Result
-I list some good and not good result as follow：
+I list some good and not good result as follow(red rectangle is what the model predicted,gredd rectangle is the ground truth)：
 <img src="./images/example-1.png" width=100%>
 <img src="./images/example-2.png" width=100%>
 <img src="./images/example-3.png" width=100%>
