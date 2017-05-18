@@ -1,4 +1,4 @@
-## My implement or roialign
+## My implement of roialign
 **NOTE**:ROI align has two step:
 - first step:For all regions in feature map,do bilinear interpolation over all of this
 - second step:do max/vag pooling
