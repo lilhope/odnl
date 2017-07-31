@@ -252,9 +252,9 @@ class AnchorLoader(mx.io.DataIter):
 
         # decide data and label names
         if config.TRAIN.END2END:
-            self.data_name = ['data', 'im_info', 'gt_boxes','expression']
+            self.data_name = ['data', 'im_info', 'gt_boxes','expression','global_roi']
         else:
-            self.data_name = ['data']
+            self.data_name = ['data','global_roi','expression']
         self.label_name = ['label', 'bbox_target', 'bbox_weight']
 
         # status variable for synchronization between get_data and get_label
@@ -370,6 +370,7 @@ class AnchorLoader(mx.io.DataIter):
             data_shape = {k: v.shape for k, v in data.items()}
             del data_shape['im_info']
             del data_shape['expression']
+            del data_shape['global_roi']
             _, feat_shape, _ = self.feat_sym.infer_shape(**data_shape)
             feat_shape = [int(i) for i in feat_shape[0]]
 

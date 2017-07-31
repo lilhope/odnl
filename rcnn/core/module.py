@@ -25,12 +25,14 @@ class MutableModule(BaseModule):
     max_label_shapes : list of (name, shape) tuple, designating inputs whose shape vary
     fixed_param_prefix : list of str, indicating fixed parameters
     """
-    def __init__(self, sym_gen, data_names, label_names,
+    def __init__(self, sym_gen, cfg,data_names, label_names,is_train = True,
                  logger=logging, context=ctx.cpu(), work_load_list=None,default_bucket_key=46,
                  max_data_shapes=None, max_label_shapes=None, fixed_param_prefix=None):
         super(MutableModule, self).__init__(logger=logger)
         self._sym_gen = sym_gen
-        self._curr_symbol = sym_gen(default_bucket_key)
+        self._cfg = cfg
+        self._is_train = is_train
+        self._curr_symbol = sym_gen(default_bucket_key,cfg,is_train)
         self._data_names = data_names
         self._label_names = label_names
         self._context = context
@@ -49,6 +51,7 @@ class MutableModule(BaseModule):
                     if name.startswith(prefix):
                         fixed_param_names.append(name)
         self._fixed_param_names = fixed_param_names
+        print(self._fixed_param_names)
 
     def _reset_bind(self):
         self.binded = False
@@ -135,7 +138,7 @@ class MutableModule(BaseModule):
 
         if len(max_label_shapes) == 0:
             max_label_shapes = None
-        self._curr_sym = self._sym_gen(self._default_bucket_key)
+        self._curr_sym = self._sym_gen(self._default_bucket_key,self._cfg,self._is_train)
         module = Module(self._curr_sym, self._data_names, self._label_names, logger=self.logger,
                         context=self._context, work_load_list=self._work_load_list,
                         fixed_param_names=self._fixed_param_names)
@@ -180,7 +183,7 @@ class MutableModule(BaseModule):
                 shape_changed = True
 
         if shape_changed:
-            self._curr_sym = self._sym_gen(data_batch.bucket_key)
+            self._curr_sym = self._sym_gen(data_batch.bucket_key,self._cfg,self._is_train)
             module = Module(self._curr_sym, self._data_names, self._label_names,
                             logger=self.logger, context=self._context,
                             work_load_list=self._work_load_list,

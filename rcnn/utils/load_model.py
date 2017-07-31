@@ -13,6 +13,7 @@ def load_checkpoint(prefix, epoch):
         Model parameter, dict of name to NDArray of net's auxiliary states.
     """
     save_dict = mx.nd.load('%s-%04d.params' % (prefix, epoch))
+    print("loading params from %s-%04d.params" % (prefix,epoch))
     arg_params = {}
     aux_params = {}
     for k, v in save_dict.items():
@@ -36,7 +37,7 @@ def convert_context(params, ctx):
     return new_params
 
 
-def load_param(prefix, epoch, convert=False, ctx=None, process=False):
+def load_param(prefix, epoch, convert=False, ctx=None,cells=None, process=False):
     """
     wrapper for load checkpoint
     :param prefix: Prefix of model name.
@@ -47,6 +48,11 @@ def load_param(prefix, epoch, convert=False, ctx=None, process=False):
     :return: (arg_params, aux_params)
     """
     arg_params, aux_params = load_checkpoint(prefix, epoch)
+    if cells is not None:
+        if isinstance(cells, mx.rnn.BaseRNNCell):
+            cells = [cells]
+        for cell in cells:
+            arg_params = cell.pack_weights(arg_params)
     if convert:
         if ctx is None:
             ctx = mx.cpu()

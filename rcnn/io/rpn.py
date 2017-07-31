@@ -52,6 +52,7 @@ def get_rpn_batch(roidb):
     imgs, roidb = get_image(roidb)
     im_array = imgs[0]
     im_info = np.array([roidb[0]['im_info']], dtype=np.float32)
+    global_roi = np.array([[0,0,0,im_info[0][0],im_info[0][1]]],dtype=np.float32)
 
     # gt boxes: (x1, y1, x2, y2, cls)
     #we organize all bboxes matches the expression as class,all candidates that doesn't match the expression as class 2
@@ -77,7 +78,8 @@ def get_rpn_batch(roidb):
     expression = expression[np.newaxis,:]
     data = {'data': im_array,
             'im_info': im_info,
-            'expression':expression}
+            'expression':expression,
+            'global_roi':global_roi}
     label = {'gt_boxes': gt_boxes}
 
     return data, label

@@ -1,4 +1,5 @@
 import numpy as np
+import mxnet as mx
 from easydict import EasyDict as edict
 
 config = edict()
@@ -18,6 +19,7 @@ config.ANCHOR_SCALES = (4,8, 16, 32)
 config.ANCHOR_RATIOS = (0.5, 1, 2)
 config.NUM_ANCHORS = len(config.ANCHOR_SCALES) * len(config.ANCHOR_RATIOS)
 
+config.ENCODER_CELL = mx.rnn.FusedRNNCell(num_hidden=256,num_layers=2,mode='lstm',dropout=0.5)
 config.TRAIN = edict()
 
 # R-CNN and RPN
@@ -25,6 +27,7 @@ config.TRAIN = edict()
 config.TRAIN.BATCH_IMAGES = 2
 # e2e changes behavior of anchor loader and metric
 config.TRAIN.END2END = False
+config.TRAIN.ENABLE_OHEM = False
 
 
 # R-CNN
@@ -115,7 +118,7 @@ default.frequent = 20
 default.kvstore = 'device'
 # default e2e
 default.e2e_prefix = 'model/e2e'
-default.e2e_epoch = 8
+default.e2e_epoch = 10
 default.e2e_lr = default.base_lr
 default.e2e_lr_step = '7'
 # default rpn
@@ -135,14 +138,14 @@ network = edict()
 network.vgg = edict()
 
 network.resnet = edict()
-network.resnet.pretrained = 'model/resnet-101'
+network.resnet.pretrained = 'model/resnet_v1_101'
 network.resnet.pretrained_epoch = 0
-network.resnet.PIXEL_MEANS = np.array([0, 0, 0])
+network.resnet.PIXEL_MEANS = np.array([0,0,0])
 network.resnet.IMAGE_STRIDE = 0
 network.resnet.RPN_FEAT_STRIDE = 16
 network.resnet.RCNN_FEAT_STRIDE = 16
-network.resnet.FIXED_PARAMS = ['conv0', 'stage1', 'gamma', 'beta']
-network.resnet.FIXED_PARAMS_SHARED = ['conv0', 'stage1', 'stage2', 'stage3', 'gamma', 'beta']
+network.resnet.FIXED_PARAMS = ['conv1', 'res2', 'gamma', 'beta','embed']
+network.resnet.FIXED_PARAMS_SHARED = ['conv1', 'res2', 'res3', 'res4', 'gamma', 'beta','embed']
 
 # dataset settings
 dataset = edict()
