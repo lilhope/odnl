@@ -749,6 +749,7 @@ class symbol_resnet(Symbol):
             data = mx.sym.Variable(name="data")
             im_info = mx.sym.Variable(name="im_info")
             global_roi = mx.sym.Variable(name='global_roi')
+            expression = mx.sym.Variable(name='expression')
         
         data_bn = mx.sym.BatchNorm(data=data, fix_gamma=True, eps=self.eps, use_global_stats=self.use_global_stats, name='bn_data')
 

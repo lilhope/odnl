@@ -30,12 +30,14 @@ def get_rpn_testbatch(roidb):
     imgs, roidb = get_image(roidb)
     im_array = imgs[0]
     im_info = np.array([roidb[0]['im_info']], dtype=np.float32)
+    global_roi = np.array([[0,0,0,im_info[0][0],im_info[0][1]]],dtype=np.float32)
     expression = np.array(roidb[0]['expression'],dtype=np.float32)
     expression = expression[np.newaxis,:]
 
     data = {'data': im_array,
             'im_info': im_info,
-            'expression':expression}
+            'expression':expression,
+            'global_roi':global_roi}
     
     label = {}
 

@@ -35,12 +35,13 @@ def test_rcnn(network, dataset, root_path,subset,split,
     # get test data iter
     test_data = TestLoader(roidb, batch_size=1, shuffle=shuffle, has_rpn=has_rpn)
     curr_bucket_key = test_data.bucket_key
-    sym_gen = eval('get_'+network+'_test')
-    sym = sym_gen(seq_len=curr_bucket_key,num_classes=config.NUM_CLASSES, num_anchors=config.NUM_ANCHORS)
+    sym_instance = eval('symbol_' + network)()
+    sym_gen = sym_instance.get_symbol
+    sym = sym_gen(curr_bucket_key,config,is_train=False)
     
 
     # load model
-    arg_params, aux_params = load_param(prefix, epoch, convert=True, ctx=ctx, process=True)
+    arg_params, aux_params = load_param(prefix, epoch, convert=True, ctx=ctx,cells=config.ENCODER_CELL,process=True)
 
     # infer shape
     data_shape_dict = dict(test_data.provide_data)
@@ -68,7 +69,7 @@ def test_rcnn(network, dataset, root_path,subset,split,
         max_data_shape.append(('rois', (1, config.TEST.PROPOSAL_POST_NMS_TOP_N + 30, 5)))
 
     # create predictor
-    predictor = Predictor(sym_gen, data_names, label_names,
+    predictor = Predictor(sym_gen,config,data_names, label_names,
                           context=ctx, max_data_shapes=max_data_shape,
                           provide_data=test_data.provide_data, provide_label=test_data.provide_label,
                           arg_params=arg_params, aux_params=aux_params)

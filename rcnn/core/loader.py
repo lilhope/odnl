@@ -25,7 +25,7 @@ class TestLoader(mx.io.DataIter):
 
         # decide data and label names (only for training)
         if has_rpn:
-            self.data_name = ['data', 'im_info','expression']
+            self.data_name = ['data', 'im_info','expression','global_roi']
         else:
             self.data_name = ['data', 'rois']
         self.label_name = None
