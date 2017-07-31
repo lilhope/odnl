@@ -30,8 +30,9 @@ def train_net(args, ctx, pretrained, epoch, prefix, begin_epoch, end_epoch,
     config.TRAIN.BBOX_NORMALIZATION_PRECOMPUTED = True
 
     # load symbol
-    sym_gen = eval('get_' + args.network + '_train')
-    sym = sym_gen(46,num_classes=config.NUM_CLASSES, num_anchors=config.NUM_ANCHORS)
+    sym_instance = eval('symbol_' + args.network)()
+    sym_gen = sym_instance.get_symbol
+    sym = sym_gen(46,config,is_train=True)
     feat_sym = sym.get_internals()['rpn_cls_score_output']
 
     # setup multi-gpu
@@ -61,18 +62,16 @@ def train_net(args, ctx, pretrained, epoch, prefix, begin_epoch, end_epoch,
     # infer shape
     #get a new symbol
     bucket_key = train_data.bucket_key
-    curr_sym = sym_gen(seq_len=bucket_key,num_classes=config.NUM_CLASSES, num_anchors=config.NUM_ANCHORS)
     print(train_data.provide_data)
     data_shape_dict = dict(train_data.provide_data + train_data.provide_label)
-    arg_shape, out_shape, aux_shape = curr_sym.infer_shape(**data_shape_dict)
-    arg_shape_dict = dict(zip(curr_sym.list_arguments(), arg_shape))
-    out_shape_dict = dict(zip(curr_sym.list_outputs(), out_shape))
-    aux_shape_dict = dict(zip(curr_sym.list_auxiliary_states(), aux_shape))
-    del arg_shape_dict['lstm_parameters']
+    sym_instance.infer_shape(data_shape_dict)
+    #arg_shape, out_shape, aux_shape = curr_sym.infer_shape(**data_shape_dict)
+    #arg_shape_dict = dict(zip(curr_sym.list_arguments(), arg_shape))
+    #out_shape_dict = dict(zip(curr_sym.list_outputs(), out_shape))
+    #aux_shape_dict = dict(zip(curr_sym.list_auxiliary_states(), aux_shape))
+    #del arg_shape_dict['lstm_parameters']
     #print(curr_sym.list_arguments())
     #print(aux_shape_dict)
-    print('output shape')
-    pprint.pprint(out_shape_dict)
 
     # load and initialize params
     if args.resume:
@@ -85,34 +84,24 @@ def train_net(args, ctx, pretrained, epoch, prefix, begin_epoch, end_epoch,
             arg_params['embed_weight'] = mx.nd.array(W)
         else:
             arg_params['embed_weight'] = mx.random.uniform(0,0.01,shape=arg_shape_dict['embed_weight'])
-        arg_params['rpn_conv_3x3_weight'] = mx.random.normal(0, 0.01, shape=arg_shape_dict['rpn_conv_3x3_weight'])
-        arg_params['rpn_conv_3x3_bias'] = mx.nd.zeros(shape=arg_shape_dict['rpn_conv_3x3_bias'])
-        arg_params['rpn_cls_score_weight'] = mx.random.normal(0, 0.01, shape=arg_shape_dict['rpn_cls_score_weight'])
-        arg_params['rpn_cls_score_bias'] = mx.nd.zeros(shape=arg_shape_dict['rpn_cls_score_bias'])
-        arg_params['rpn_bbox_pred_weight'] = mx.random.normal(0, 0.01, shape=arg_shape_dict['rpn_bbox_pred_weight'])
-        arg_params['rpn_bbox_pred_bias'] = mx.nd.zeros(shape=arg_shape_dict['rpn_bbox_pred_bias'])
-        arg_params['cls_score_weight'] = mx.random.normal(0, 0.01, shape=arg_shape_dict['cls_score_weight'])
-        arg_params['cls_score_bias'] = mx.nd.zeros(shape=arg_shape_dict['cls_score_bias'])
-        arg_params['bbox_pred_weight'] = mx.random.normal(0, 0.001, shape=arg_shape_dict['bbox_pred_weight'])
-        arg_params['bbox_pred_bias'] = mx.nd.zeros(shape=arg_shape_dict['bbox_pred_bias'])
-    #del data_shape_dict['lstm_parameters']
-    # check parameter shapes
-    for k in arg_shape_dict.iterkeys():
-        if k in data_shape_dict:
-            continue
-        assert k in arg_params, k + ' not initialized'
-        assert arg_params[k].shape == arg_shape_dict[k], \
-            'shape inconsistent for ' + k + ' inferred ' + str(arg_shape_dict[k]) + ' provided ' + str(arg_params[k].shape)
-    for k in sym.list_auxiliary_states():
-        assert k in aux_params, k + ' not initialized'
-        assert aux_params[k].shape == aux_shape_dict[k], \
-            'shape inconsistent for ' + k + ' inferred ' + str(aux_shape_dict[k]) + ' provided ' + str(aux_params[k].shape)
+        sym_instance.init_weight(config,arg_params,aux_params)
+    #no checking
+    #for k in arg_shape_dict.iterkeys():
+     #   if k in data_shape_dict:
+      #      continue
+       # assert k in arg_params, k + ' not initialized'
+        #assert arg_params[k].shape == arg_shape_dict[k], \
+         #   'shape inconsistent for ' + k + ' inferred ' + str(arg_shape_dict[k]) + ' provided ' + str(arg_params[k].shape)
+    #for k in sym.list_auxiliary_states():
+     #   assert k in aux_params, k + ' not initialized'
+      #  assert aux_params[k].shape == aux_shape_dict[k], \
+       #     'shape inconsistent for ' + k + ' inferred ' + str(aux_shape_dict[k]) + ' provided ' + str(aux_params[k].shape)
 
     # create solver
     fixed_param_prefix = config.FIXED_PARAMS
     data_names = [k[0] for k in train_data.provide_data]
     label_names = [k[0] for k in train_data.provide_label]
-    mod = MutableModule(sym_gen, data_names=data_names, label_names=label_names,
+    mod = MutableModule(sym_gen,config, data_names=data_names, label_names=label_names,
                         logger=logger, context=ctx, work_load_list=args.work_load_list,
                         max_data_shapes=max_data_shape, max_label_shapes=max_label_shape,
                         fixed_param_prefix=fixed_param_prefix)
@@ -132,7 +121,7 @@ def train_net(args, ctx, pretrained, epoch, prefix, begin_epoch, end_epoch,
     batch_end_callback = callback.Speedometer(train_data.batch_size, frequent=args.frequent)
     means = np.tile(np.array(config.TRAIN.BBOX_MEANS), config.NUM_CLASSES)
     stds = np.tile(np.array(config.TRAIN.BBOX_STDS), config.NUM_CLASSES)
-    epoch_end_callback = callback.do_checkpoint(prefix, means, stds)
+    epoch_end_callback = callback.do_checkpoint(config.ENCODER_CELL,prefix, means, stds)
     # decide learning rate
     base_lr = lr
     lr_factor = 0.1
@@ -178,13 +167,13 @@ def parse_args():
     parser.add_argument('--work_load_list', help='work load for different devices', default=None, type=list)
     parser.add_argument('--no_flip', help='disable flip images', action='store_true')
     parser.add_argument('--no_shuffle', help='disable random shuffle', action='store_true')
-    parser.add_argument('--resume', help='continue training', default=True,type=bool)
+    parser.add_argument('--resume', help='continue training', default=False,type=bool)
     # e2e
     parser.add_argument('--gpus', help='GPU device to train with', default='0', type=str)
     parser.add_argument('--pretrained', help='pretrained model prefix', default=default.pretrained, type=str)
     parser.add_argument('--pretrained_epoch', help='pretrained model epoch', default=default.pretrained_epoch, type=int)
     parser.add_argument('--prefix', help='new model prefix', default=default.e2e_prefix, type=str)
-    parser.add_argument('--begin_epoch', help='begin epoch of training, use with resume', default=3, type=int)
+    parser.add_argument('--begin_epoch', help='begin epoch of training, use with resume', default=0, type=int)
     parser.add_argument('--end_epoch', help='end epoch of training', default=default.e2e_epoch, type=int)
     parser.add_argument('--lr', help='base learning rate', default=default.e2e_lr, type=float)
     parser.add_argument('--lr_step', help='learning rate steps (in epoch)', default=default.e2e_lr_step, type=str)
